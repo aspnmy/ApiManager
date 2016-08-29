@@ -1,13 +1,15 @@
 <?php defined('API') or exit('http://gwalker.cn');?>
 <?php
     /**
-     * @dec 得到配置文件的配置项
-     * @param null $name
-     * @return mixed
+     * @dec 得到配置文件的配置项 & 设置某配置项
+     * @param null $name 配置键名
+     * @param null $value 设置时提供此值
+     * @return bool|mixed
      * 使用方法,例子
      * C('db') 或 C('version->no')
      */
-    function C($name = null){
+function C($name = null, $value = null)
+{
         static $_config = array();
         if(empty($_config)){
             $_config = include_once './MinPHP/core/config.php';
@@ -15,6 +17,17 @@
         if(is_null($name)){
             return $_config;
         }else{
+            //设置某项的值
+            if (!is_null($value)) {
+                if (strpos($name, '->')) {
+                    $arr = explode('->', $name);
+                    $_config[$arr[0]][$arr[1]] = $value;
+                } else {
+                    $_config[$name] = $value;
+                }
+                return true;
+            }
+            //获取某项的值
             if(strpos($name,'->')){
                 $arr = explode('->',$name);
                 $tmp = $_config;
@@ -32,42 +45,98 @@
         static $_model = null;
         if(is_null($_model)){
             $db=C('db');
-            try {
-                $_model = new PDO("mysql:host={$db['host']};dbname={$db['dbname']}","{$db['user']}","{$db['passwd']}");
-            } catch ( PDOException $e ) {
-                die ( "Connect Error Infomation:" . $e->getMessage () );
+            //连接类型
+            $type = strtolower($db['linktype']);
+            $type = in_array($type, array('pdo', 'mysqli')) ? $type : 'mysqli';
+            C('db->linktype', $type);
+            //设置数据库字符集
+            $dbCharset = 'SET NAMES utf8';
+            switch ($type) {
+                case 'pdo': //pdo类型连接
+                    try {
+                        $_model = new PDO("mysql:host={$db['host']};dbname={$db['dbname']}", "{$db['user']}", "{$db['passwd']}");
+                    } catch (PDOException $e) {
+                        die ("PDO unable to connect:" . $e->getMessage());
+                    }
+                    //设置数据库编码
+                    $_model->exec($dbCharset);
+                    break;
+
+                case 'mysqli': //mysqli类型连接
+                    $_model = new mysqli("{$db['host']}", "{$db['user']}", "{$db['passwd']}", "{$db['dbname']}");
+                    if ($_model->connect_errno) {
+                        die("Mysqli unable to connect:" . $_model->connect_errno . " - " . $_model->connect_error);
+                    }
+                    //设置数据库编码
+                    $_model->query($dbCharset);
+                    break;
             }
-            //设置数据库编码
-            $_model->exec('SET NAMES utf8');
         }
         return $_model;
     }
 
     //返回一条记录集
     function find($sql){
-        $rs = M()->query($sql);
-        $row = $rs->fetch(PDO::FETCH_ASSOC);
-        return $row;
+        switch (C('db->linktype')) {
+            case 'pdo':
+                $rs = M()->query($sql);
+                $row = $rs->fetch(PDO::FETCH_ASSOC);
+                return $row;
+                break;
+            case 'mysqli':
+                $rs = M()->query($sql);
+                $row = $rs->fetch_assoc();
+                return $row;
+                break;
+        }
     }
 
     //返回多条记录
     function select($sql){
-        $rs = M()->query($sql);
-        $rows = array();
-        while($row = $rs->fetch(PDO::FETCH_ASSOC)){
-            $rows[] = $row;
+        switch (C('db->linktype')) {
+            case 'pdo':
+                $rs = M()->query($sql);
+                $rows = array();
+                while ($row = $rs->fetch(PDO::FETCH_ASSOC)) {
+                    $rows[] = $row;
+                }
+                return $rows;
+                break;
+            case 'mysqli':
+                $rs = M()->query($sql);
+                $rows = array();
+                while ($row = $rs->fetch_assoc()) {
+                    $rows[] = $row;
+                }
+                return $rows;
+                break;
         }
-        return $rows;
+
     }
 
     //insert
     function insert($sql){
-        return M()->exec($sql);
+        switch (C('db->linktype')) {
+            case 'pdo':
+                return M()->exec($sql);
+                break;
+            case 'mysqli':
+                return M()->query($sql);
+                break;
+        }
     }
 
     //update
     function update($sql){
-        return M()->exec($sql);
+        switch (C('db->linktype')) {
+            case 'pdo':
+                return M()->exec($sql);
+                break;
+            case 'mysqli':
+                return M()->query($sql);
+                break;
+        }
+
     }
 
     //设置和获取session值
@@ -85,7 +154,8 @@
     }
 
     //判断是否登录
-    function is_lgoin(){
+function is_login()
+{
         $login_name = session('login_name');
         return empty($login_name) ? false : true;
     }
@@ -121,7 +191,7 @@
             return $val;
         }else{
             if(is_numeric($val)){
-                return intval($val);
+                return $val;
             }else if(is_string($val)){
                 return htmlspecialchars(trim($val),ENT_QUOTES);
             }else{
@@ -139,36 +209,26 @@
         return $protocol.$hostName.$pathInfo['dirname']."/";
     }
 
-    //下载html
-    function downfile($fileName){
-        $fileName = '路径+实际文件名';
-        //文件的类型
-        header('Content-type: application/pdf');
-        //下载显示的名字
-        header('Content-Disposition: attachment; filename="保存时的文件名.pdf"');
-        readfile("$fileName");
-        exit();
-    }
-
 /**
  * @dec 下载文件 指定了content参数，下载该参数的内容
  * @access public
  * @param string $showname 下载显示的文件名
- * @param string $content  下载的内容
- * @param integer $expire  下载内容浏览器缓存时间
+ * @param string $content 下载的内容
+ * @param integer $expire 下载内容浏览器缓存时间
  * @return void
  */
-function download($showname='',$content='',$expire=180) {
-    $type	=	"application/octet-stream";
+function download($showname = '', $content = '', $expire = 180)
+{
+    $type = "application/octet-stream";
     //发送Http Header信息 开始下载
     header("Pragma: public");
-    header("Cache-control: max-age=".$expire);
+    header("Cache-control: max-age=" . $expire);
     //header('Cache-Control: no-store, no-cache, must-revalidate');
-    header("Expires: " . gmdate("D, d M Y H:i:s",time()+$expire) . "GMT");
-    header("Last-Modified: " . gmdate("D, d M Y H:i:s",time()) . "GMT");
-    header("Content-Disposition: attachment; filename=".$showname);
-    header("Content-type: ".$type);
+    header("Expires: " . gmdate("D, d M Y H:i:s", time() + $expire) . "GMT");
+    header("Last-Modified: " . gmdate("D, d M Y H:i:s", time()) . "GMT");
+    header("Content-Disposition: attachment; filename=" . $showname);
+    header("Content-type: " . $type);
     header('Content-Encoding: none');
-    header("Content-Transfer-Encoding: binary" );
+    header("Content-Transfer-Encoding: binary");
     die($content);
 }

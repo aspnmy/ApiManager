@@ -83,6 +83,7 @@
            $p = array();
            for($i = 0;$i < $count; $i++){
                $p[$i]['name']=$info['parameter']['name'][$i];
+               $p[$i]['paramType'] = $info['parameter']['paramType'][$i];
                $p[$i]['type']=$info['parameter']['type'][$i];
                $p[$i]['default']=$info['parameter']['default'][$i];
                $p[$i]['des']=$info['parameter']['des'][$i];
@@ -102,6 +103,89 @@
 ?>
 <?php if($op == 'add'){ ?>
     <!--添加接口 start-->
+
+    <!--js自动保存到cookie  star-->
+    <script src="./MinPHP/res/jquery.min.js"></script>
+    <script>
+
+        $(function () {
+
+            $("textarea[name='des'],textarea[name='re'],textarea[name='memo']").keydown(function () {
+                AutoSave();
+            });
+
+            $(".btn-success").click(function () {
+                DeleteCookie('apimanage');
+            });
+
+        });
+    </script>
+    <script>
+        /**
+         *
+         *自动保存文字到cookie中
+         *http://www.xuebuyuan.com/1323493.html
+         *
+         */
+        function AutoSave() {
+            var des = $("textarea[name='des']").val();
+            var re = $("textarea[name='re']").val();
+            var memo = $("textarea[name='memo']").val();
+            var _value = des + ";" + re + ";" + memo;
+            if (_value == ";;") {
+                var LastContent = GetCookie('apimanage');
+
+                if (LastContent == ";;") return;
+                var text = LastContent.split(";");
+                if (des != text[0] || re != text[1] || memo != text[2]) {
+                    if (confirm("加载保存的记录")) {
+                        $("textarea[name='des']").html(text[0]);
+                        $("textarea[name='re']").html(text[1]);
+                        $("textarea[name='memo']").html(text[2]);
+                        return true;
+                    }
+                }
+
+            } else {
+                var expDays = 30;
+                var exp = new Date();
+                exp.setTime(exp.getTime() + (expDays * 86400000)); // 24*60*60*1000 = 86400000
+                var expires = '; expires=' + exp.toGMTString();
+
+                // SetCookie
+                document.cookie = "apimanage=" + escape(_value) + expires;
+            }
+        }
+
+        function getCookieVal(offset) {
+            var endstr = document.cookie.indexOf(";", offset);
+            if (endstr == -1) endstr = document.cookie.length;
+            return unescape(document.cookie.substring(offset, endstr));
+        }
+
+        function GetCookie(name) {
+            var arg = name + "=";
+            var alen = arg.length;
+            var clen = document.cookie.length;
+            var i = 0;
+            while (i < clen) {
+                var j = i + alen;
+                if (document.cookie.substring(i, j) == arg) return getCookieVal(j);
+                i = document.cookie.indexOf(" ", i) + 1;
+                if (i == 0) break;
+            }
+            return null;
+        }
+
+        function DeleteCookie(name) {
+            var exp = new Date();
+            exp.setTime(exp.getTime() - 1);
+            var cval = GetCookie(name);
+            document.cookie = name + "=" + cval + ";expires=" + exp.toGMTString();
+        }
+    </script>
+    <!--js自动保存到cookie  end-->
+
     <div style="border:1px solid #ddd">
         <div style="background:#f5f5f5;padding:20px;position:relative">
             <h4>添加接口<span style="font-size:12px;padding-left:20px;color:#a94442">注:"此色"边框为必填项</span></h4>
@@ -141,6 +225,7 @@
                             <thead>
                             <tr>
                                 <th class="col-md-3">参数名</th>
+                                <th class="col-md-2">参数类型</th>
                                 <th class="col-md-2">必传</th>
                                 <th class="col-md-2">缺省值</th>
                                 <th class="col-md-4">描述</th>
@@ -154,6 +239,9 @@
                                 <td class="form-group has-error">
                                     <input type="text" class="form-control" name="p[name][]" placeholder="参数名" required="required">
                                 </td>
+                                <td class="form-group has-error"><input type="text" class="form-control"
+                                                                        name="p[paramType][]" placeholder="参数类型"
+                                                                        required="required"></td>
                                 <td>
                                     <select class="form-control" name="p[type][]">
                                         <option value="Y">Y</option>
@@ -184,6 +272,8 @@
         function add(){
             var $html ='<tr>' +
                 '<td class="form-group has-error" ><input type="text" class="form-control has-error" name="p[name][]" placeholder="参数名" required="required"></td>' +
+                '<td class="form-group has-error">' +
+                '<input type="text" class="form-control" name="p[paramType][]" placeholder="参数类型" required="required"></td>' +
                 '<td>' +
                 '<select class="form-control" name="p[type][]">' +
                 '<option value="Y">Y</option> <option value="N">N</option>' +
@@ -251,6 +341,7 @@
                             <thead>
                             <tr>
                                 <th class="col-md-3">参数名</th>
+                                <th class="col-md-2">参数类型</th>
                                 <th class="col-md-2">必传</th>
                                 <th class="col-md-2">缺省值</th>
                                 <th class="col-md-4">描述</th>
@@ -266,6 +357,11 @@
                             <tr>
                                 <td class="form-group has-error">
                                     <input type="text" class="form-control" name="p[name][]" placeholder="参数名" value="<?php echo $info['parameter']['name'][$i]?>" required="required">
+                                </td>
+                                <td class="form-group has-error">
+                                    <input type="text" class="form-control" name="p[paramType][]" placeholder="参数类型"
+                                           value="<?php echo $info['parameter']['paramType'][$i] ?>"
+                                           required="required">
                                 </td>
                                 <td>
                                     <?php
@@ -302,14 +398,19 @@
     <script>
         function add(){
             var $html ='<tr>' +
-                '<td class="form-group has-error" ><input type="text" class="form-control has-error" name="p[name][]" placeholder="参数名" required="required"></td>' +
+                '<td class="form-group has-error" >' +
+                '<input type="text" class="form-control has-error" name="p[name][]" placeholder="参数名" required="required"></td>' +
+                '<td class="form-group has-error">' +
+                '<input type="text" class="form-control" name="p[paramType][]" placeholder="参数类型" required="required">' +
+                '</td>' +
                 '<td>' +
                 '<select class="form-control" name="p[type][]">' +
                 '<option value="Y">Y</option> <option value="N">N</option>' +
                 '</select >' +
                 '</td>' +
                 '<td>' +
-                '<input type="text" class="form-control" name="p[default][]" placeholder="缺省值"></td>' +
+                '<input type="text" class="form-control" name="p[default][]" placeholder="缺省值">' +
+                '</td>' +
                 '<td>' +
                 '<textarea name="p[des][]" rows="1" class="form-control" placeholder="描述"></textarea>' +
                 '</td>' +
@@ -362,6 +463,7 @@
                     <thead>
                     <tr>
                         <th class="col-md-3">参数名</th>
+                        <th class="col-md-2">参数类型</th>
                         <th class="col-md-2">必传</th>
                         <th class="col-md-2">缺省值</th>
                         <th class="col-md-5">描述</th>
@@ -375,6 +477,7 @@
                     <?php for( $i=0; $i<$pnum; $i++ ) {?>
                     <tr>
                         <td><?php echo $parameter['name'][$i]?></td>
+                        <td><?php echo $parameter['paramType'][$i] ?></td>
                         <td><?php if($parameter['type'][$i]=='Y'){echo '<span style="color:red">Y<span>';}else{echo '<span style="color:green">N<span>';}?></td>
                         <td><?php echo $parameter['default'][$i]?></td>
                         <td><?php echo $parameter['des'][$i]?></td>
@@ -399,7 +502,8 @@
         </div>
         <!--接口详细列表end-->
         <!--接口详情返回顶部按钮start-->
-        <div id="gotop" onclick="goTop()" style="z-index:999999;display:none;color:#e6e6e6;cursor:pointer;width:34px;height:34px;border:#ddd 1px solid;line-height:35px;text-align:center;background:rgba(91,192,222, 0.8);position:fixed;right:1px;top:200px;border-radius:50%">
+            <div id="gotop" onclick="goTop()"
+                 style="z-index:999999;font-size:18px;display:none;color:#e6e6e6;cursor:pointer;width:42px;height:42px;border:#ddd 1px solid;line-height:42px;text-align:center;background:rgba(91,192,222, 0.8);position:fixed;right:20px;bottom:200px;border-radius:50%;box-shadow: 0px 0px 0px 1px #cccccc;">
             T
         </div>
         <!--接口详情返回顶部按钮end-->
@@ -438,9 +542,9 @@
         document.getElementById('mainwindow').onscroll = function () {
             if(document.getElementById('mainwindow').scrollTop > 100){
                 document.getElementById('gotop').style.display='block';
-                console.log('show');
+            } else {
+                document.getElementById('gotop').style.display = 'none';
             }
-            console.log(document.getElementById('mainwindow').scrollTop);
         };
     </script>
 <?php } ?>
